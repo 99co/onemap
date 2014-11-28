@@ -1,10 +1,20 @@
 
+import re
 import urllib
 import datetime
 import requests
 
+import svy21
 
-class OneMap(object):
+_om = {}
+def OneMap(access_key):
+    global _om
+    if access_key not in _om:
+        _om[access_key] = OneMapAPI(access_key)
+    return _om[access_key]
+
+
+class OneMapAPI(object):
 
     BASE_DOMAIN = "http://www.onemap.sg"
     API_ROUTE = "/API/services.svc"
@@ -31,7 +41,30 @@ class OneMap(object):
 
         url = "%s/%s/%s?%s" % (self.BASE_DOMAIN, api_route or self.API_ROUTE, endpoint, urllib.urlencode(params))
         rv = requests.get(url)
-        return rv.json()
+        data = {}
+        error = None
+        page_count = 0
+        items = []
+        try:
+            data = rv.json()
+            items = rv.json().pop(data.keys()[0])
+            if 'ErrorMessage' in items[0] or 'PageCount' in items[0]:
+                s = items.pop(0)
+                error = s.get('ErrorMessage')
+                page_count = s.get('PageCount', 0)
+        except ValueError as e:
+            error = e
+
+        OMR = OneMapResult(
+            endpoint,
+            params,
+            rv.status_code,
+            page_count,
+            items,
+            error,
+            data
+        )
+        return OMR
 
 
     def _validate_wildcard(self, term, wildcard, search_by=None):
@@ -60,7 +93,7 @@ class OneMap(object):
         data = self.COMMON_PARAMS.copy()
 
         if kwargs.get('term') and kwargs.get('wildcard'):
-            data['wc'] = self._validate_wildcard(kwargs.get('term'), kwargs.get('wildcard'))
+            data['wc'] = self._validate_wildcard(kwargs.get('term'), kwargs.get('wildcard'), kwargs.get('search_by'))
 
         if kwargs.get('with_geo') is not None:
             data['returnGeom'] = self._validate_geo(kwargs.get('with_geo'))
@@ -81,10 +114,10 @@ class OneMap(object):
 
         data = self._ping('getToken', {"accessKey": self.access_key})
 
-        if data.get('GetToken') and \
-          len(data.get('GetToken')) and \
-          data.get('GetToken')[0].get('NewToken'):
-            self.token = data.get('GetToken')[0].get('NewToken')
+        if data.raw.get('GetToken') and \
+          len(data.raw.get('GetToken')) and \
+          data.raw.get('GetToken')[0].get('NewToken'):
+            self.token = data.raw.get('GetToken')[0].get('NewToken')
             self.token_expiry = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
             return self.token
 
@@ -227,6 +260,104 @@ class OneMap(object):
             res = filter(lambda x: x[f] == value, res_iter)
 
         return res
+
+    def resolve(self, address, buffer=10):
+        m = re.match("(?P<lng>\d+\.\d+),\s?(?P<lat>\d+\.\d+)", address)
+        if m:
+            x, y = (m.groupdict()['lng'], m.groupdict()['lat'])
+        else:
+            res = self.search_address(address)
+            if res.error:
+                raise OneMapError(res.error)
+            item = res.items[0]
+            x, y = (item.x, item.y)
+
+        geo = self.geocode("%s,%s" % (x, y), buffer=buffer)
+        if geo.error:
+            raise OneMapError(geo.error)
+
+        item = geo.items[0]
+        out = {k: v for k, v in item.iteritems()}
+        S = svy21.SVY21()
+        i = geo.items[0]
+        coordinates = S.computeLatLon(i.y, i.x)
+        coordinates = list(coordinates)
+        coordinates.reverse()
+        out['coordinates'] = coordinates
+        return out
+
+
+class OneMapResult(object):
+
+    def __init__(self, endpoint, params, status_code, page_count, items, error=None, raw=None):
+        self.endpoint = endpoint
+        self.params = params
+        self.status_code = status_code
+        self.page_count = int(page_count) if isinstance(page_count, basestring) else page_count
+        self.items = []
+        self.error = error
+        self.raw = raw
+        for i in items:
+            # Sanitise result field names
+            if 'XCOORD' in i:
+                i['X'] = float(i.pop('XCOORD'))
+            if 'YCOORD' in i:
+                i['Y'] = float(i.pop('YCOORD'))
+            self.items.append(OneMapResultItem(**i))
+
+    def filter(self, **filters):
+        def do_filter(item):
+            return all(map(lambda (k,v): item.get(k, v) == v, filters.iteritems()))
+
+        return filter(do_filter, self.items)
+
+    def __getitem__(self, key):
+        return self.items[key]
+
+    def __iter__(self):
+        return self.items.__iter__()
+
+    def __repr__(self):
+        return str(self.items)
+
+    def __str__(self):
+        return self.__unicode__()
+
+    def __unicode__(self):
+        return str(self.items)
+
+
+class OneMapResultItem(object):
+
+    def __init__(self, **kwargs):
+        self.__raw = {k.lower(): v for k, v in kwargs.items()}
+
+    def __getattr__(self, name):
+        try:
+            return getattr(self.__raw, name)
+        except AttributeError:
+            if name in self.__raw:
+                return self.__raw[name]
+            else:
+                raise AttributeError()
+
+    def __getitem__(self, name):
+        try:
+            return self.__raw.get(name)
+        except KeyError:
+            raise AttributeError()
+
+    def __dir__(self):
+        return self.__raw.keys()
+
+    def __repr__(self):
+        return str(self.__raw)
+
+    def __str__(self):
+        return self.__unicode__()
+
+    def __unicode__(self):
+        return unicode(self.__raw)
 
 
 class OneMapError(Exception):
