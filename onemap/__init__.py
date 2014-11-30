@@ -294,16 +294,9 @@ class OneMapResult(object):
         self.params = params
         self.status_code = status_code
         self.page_count = int(page_count) if isinstance(page_count, basestring) else page_count
-        self.items = []
         self.error = error
         self.raw = raw
-        for i in items:
-            # Sanitise result field names
-            if 'XCOORD' in i:
-                i['X'] = float(i.pop('XCOORD'))
-            if 'YCOORD' in i:
-                i['Y'] = float(i.pop('YCOORD'))
-            self.items.append(OneMapResultItem(**i))
+        self.items = [OneMapResultItem(**i) for i in items]
 
     def filter(self, **filters):
         def do_filter(item):
@@ -331,6 +324,11 @@ class OneMapResultItem(object):
 
     def __init__(self, **kwargs):
         self.__raw = {k.lower(): v for k, v in kwargs.items()}
+
+        # Sanitise result field names
+        for f in ['xcoord', 'x', 'ycoord', 'y']:
+            if self.__raw.get(f):
+                self.__raw[f[0]] = float(self.__raw.pop(f))
 
     def __getattr__(self, name):
         try:
