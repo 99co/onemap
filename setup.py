@@ -8,7 +8,7 @@ except (IOError, ImportError):
 
 setup(
     name='onemap',
-    version='0.2.0',
+    version='0.2.1',
     author='Ruiwen Chua',
     author_email='ruiwen@99.co',
     packages=['onemap'],
