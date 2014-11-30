@@ -41,10 +41,12 @@ class OneMapAPI(object):
 
         url = "%s/%s/%s?%s" % (self.BASE_DOMAIN, api_route or self.API_ROUTE, endpoint, urllib.urlencode(params))
         rv = requests.get(url)
+
         data = {}
         error = None
         page_count = 0
         items = []
+
         try:
             data = rv.json()
             items = rv.json().pop(data.keys()[0])
