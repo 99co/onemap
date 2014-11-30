@@ -330,6 +330,12 @@ class OneMapResultItem(object):
             if self.__raw.get(f):
                 self.__raw[f[0]] = float(self.__raw.pop(f))
 
+        if all([self.__raw.get('x'), self.__raw.get('y')]):
+            S = svy21.SVY21()
+            coordinates = S.computeLatLon(self.__raw['y'], self.__raw['x'])
+            self.__raw['lat'] = coordinates[0]
+            self.__raw['lng'] = coordinates[1]
+
     def __getattr__(self, name):
         try:
             return getattr(self.__raw, name)
