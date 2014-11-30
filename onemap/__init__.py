@@ -300,7 +300,7 @@ class OneMapResult(object):
 
     def filter(self, **filters):
         def do_filter(item):
-            return all(map(lambda (k,v): item.get(k, v) == v, filters.iteritems()))
+            return all(map(lambda (k,v): (item.get(k) or '').lower() == v.lower(), filters.iteritems()))
 
         return filter(do_filter, self.items)
 
