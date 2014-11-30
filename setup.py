@@ -14,9 +14,9 @@ setup(
     packages=['onemap'],
     url='https://github.com/99co/onemap',
     license='LICENSE.txt',
-    description='Wrapper for the OneMap API',
+    description='Wrapper for the OneMapSG API',
     long_description=readme,
-    keywords=['onemap'],
+    keywords=['onemap', 'onemapsg'],
     install_requires=[
         "requests >= 1.2.3"
     ]

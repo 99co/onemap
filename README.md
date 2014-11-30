@@ -1,8 +1,8 @@
 # OneMap
 
-This library provides a thin wrapper over the OneMapSG API (http://www.onemap.sg/api/help/)
+This library provides a thin wrapper over the OneMap Singapore API (http://www.onemap.sg/api/help/)
 
-You'll need an access key from OneMap before you'll be able to use the OneMap API
+You'll need an access key from OneMapSG before you'll be able to use the OneMapSG API
 
 Examples
 
